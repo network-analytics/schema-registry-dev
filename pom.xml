@@ -73,12 +73,15 @@
         <module>dek-registry-client</module>
         <module>dek-registry</module>
         <module>yang-schema-provider</module>
+        <module>yang-json-schema-serializer</module>
+        <module>yang-json-schema-serde</module>
+        <module>yang-cbor-schema-serializer</module>
+        <module>yang-cbor-schema-serde</module>
         <module>client-encryption</module>
         <module>client-encryption-aws</module>
         <module>client-encryption-azure</module>
         <module>client-encryption-gcp</module>
         <module>client-encryption-hcvault</module>
-        <module>client-encryption</module>
         <module>benchmark</module>
     </modules>
 
@@ -108,6 +111,7 @@
         <io.confluent.schema-registry.version>7.5.1</io.confluent.schema-registry.version>
         <commons.compress.version>1.21</commons.compress.version>
         <commons.lang3.version>3.12.0</commons.lang3.version>
+        <yangkit.version>1.4.5</yangkit.version>
     </properties>
 
     <repositories>
@@ -457,6 +461,11 @@
             <dependency>
                 <groupId>io.confluent</groupId>
                 <artifactId>kafka-yang-schema-provider</artifactId>
+                <version>${io.confluent.schema-registry.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.confluent</groupId>
+                <artifactId>kafka-yang-json-schema-serializer</artifactId>
                 <version>${io.confluent.schema-registry.version}</version>
             </dependency>
             <dependency>
