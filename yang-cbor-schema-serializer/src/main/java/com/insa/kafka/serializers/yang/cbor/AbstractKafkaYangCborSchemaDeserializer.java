@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 INSA Lyon.
+ * Copyright 2025 INSA Lyon.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,6 +42,8 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static com.insa.kafka.serializers.yang.cbor.AbstractKafkaYangCborSchemaSerializer.SCHEMA_ID_KEY;
 
 public abstract class AbstractKafkaYangCborSchemaDeserializer<T> extends AbstractKafkaSchemaSerDe {
 
@@ -98,8 +100,9 @@ public abstract class AbstractKafkaYangCborSchemaDeserializer<T> extends Abstrac
 
     int id = -1;
     try {
-      ByteBuffer buffer = getByteBuffer(payload);
-      id = buffer.getInt();
+      byte[] serializedSchemaId = headers.lastHeader(SCHEMA_ID_KEY).value();
+      id = ByteBuffer.wrap(serializedSchemaId).getInt();
+
       String subject = isKey == null || strategyUsesSchema(isKey)
           ? getContextName(topic) : subjectName(topic, isKey, null);
       YangSchema schema = ((YangSchema) schemaRegistry.getSchemaBySubjectAndId(subject, id));
@@ -121,8 +124,9 @@ public abstract class AbstractKafkaYangCborSchemaDeserializer<T> extends Abstrac
         migrations = getMigrations(subject, schema, readerSchema);
       }
 
-      int length = buffer.limit() - 1 - idSize;
-      int start = buffer.position() + buffer.arrayOffset();
+      ByteBuffer buffer = ByteBuffer.wrap(payload);
+      int length = buffer.limit();
+      int start = buffer.position();
 
       JsonNode jsonNode = null;
       YangDataDocument yangDataDocument = null;

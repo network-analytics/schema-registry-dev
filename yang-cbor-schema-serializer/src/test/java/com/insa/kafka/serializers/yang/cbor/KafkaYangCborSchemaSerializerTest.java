@@ -7,6 +7,8 @@ import com.swisscom.kafka.schemaregistry.yang.YangSchemaProvider;
 import io.confluent.kafka.schemaregistry.client.MockSchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import org.apache.kafka.common.errors.SerializationException;
+import org.apache.kafka.common.header.Headers;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.dom4j.DocumentException;
 import org.junit.jupiter.api.Test;
 import org.yangcentral.yangkit.common.api.validate.ValidatorResultBuilder;
@@ -18,10 +20,12 @@ import org.yangcentral.yangkit.parser.YangYinParser;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Properties;
 
+import static com.insa.kafka.serializers.yang.cbor.AbstractKafkaYangCborSchemaSerializer.SCHEMA_ID_KEY;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class KafkaYangCborSchemaSerializerTest {
@@ -32,6 +36,9 @@ public class KafkaYangCborSchemaSerializerTest {
   private KafkaYangCborSchemaSerializer noValidationSerializer;
   private KafkaYangCborSchemaDeserializer deserializer;
   private final String topic;
+  private static int idSize = 4;
+  private Headers serializerHeaders;
+  private Headers deserializerHeaders;
 
   public KafkaYangCborSchemaSerializerTest() {
     config = new Properties();
@@ -127,6 +134,14 @@ public class KafkaYangCborSchemaSerializerTest {
     return jsonNode;
   }
 
+  private Headers getDeserializationKafkaHeader(Headers serializationHeaders) {
+    Headers deserializerHeaders = new RecordHeaders();
+    byte[] serializedSchemaId = serializationHeaders.lastHeader(SCHEMA_ID_KEY).value();
+    int schemaId = ByteBuffer.wrap(serializedSchemaId).getInt();
+    deserializerHeaders.add(SCHEMA_ID_KEY, ByteBuffer.allocate(idSize).putInt(schemaId).array());
+    return deserializerHeaders;
+  }
+
   @Test
   public void singleLeafTest() {
     byte[] bytes;
@@ -137,24 +152,34 @@ public class KafkaYangCborSchemaSerializerTest {
 
 
     doc = getRecord(true);
-    bytes = serializer.serialize(topic, doc);
-    assertEquals(getJsonNode(true), getJsonNode(deserializer.deserialize(topic, bytes)));
+    serializerHeaders = new RecordHeaders();
+    bytes = serializer.serialize(topic, serializerHeaders, doc);
+    deserializerHeaders = getDeserializationKafkaHeader(serializerHeaders);
+    assertEquals(getJsonNode(true), getJsonNode(deserializer.deserialize(topic, deserializerHeaders, bytes)));
 
     doc = getRecord(123);
-    bytes = serializer.serialize(topic, doc);
-    assertEquals(getJsonNode(123), getJsonNode(deserializer.deserialize(topic, bytes)));
+    serializerHeaders = new RecordHeaders();
+    bytes = serializer.serialize(topic, serializerHeaders, doc);
+    deserializerHeaders = getDeserializationKafkaHeader(serializerHeaders);
+    assertEquals(getJsonNode(123), getJsonNode(deserializer.deserialize(topic, deserializerHeaders, bytes)));
 
     doc = getRecord(1.23f);
-    bytes = serializer.serialize(topic, doc);
-    assertEquals(getJsonNode(1.23f), getJsonNode(deserializer.deserialize(topic, bytes)));
+    serializerHeaders = new RecordHeaders();
+    bytes = serializer.serialize(topic, serializerHeaders, doc);
+    deserializerHeaders = getDeserializationKafkaHeader(serializerHeaders);
+    assertEquals(getJsonNode(1.23f), getJsonNode(deserializer.deserialize(topic, deserializerHeaders, bytes)));
 
     doc = getRecord(123L);
-    bytes = serializer.serialize(topic, doc);
-    assertEquals(getJsonNode(123L), getJsonNode(deserializer.deserialize(topic, bytes)));
+    serializerHeaders = new RecordHeaders();
+    bytes = serializer.serialize(topic, serializerHeaders, doc);
+    deserializerHeaders = getDeserializationKafkaHeader(serializerHeaders);
+    assertEquals(getJsonNode(123L), getJsonNode(deserializer.deserialize(topic, deserializerHeaders, bytes)));
 
     doc = getRecord("\"abc\"");
-    bytes = serializer.serialize(topic, doc);
-    assertEquals(getJsonNode("\"abc\""), getJsonNode(deserializer.deserialize(topic, bytes)));
+    serializerHeaders = new RecordHeaders();
+    bytes = serializer.serialize(topic, serializerHeaders, doc);
+    deserializerHeaders = getDeserializationKafkaHeader(serializerHeaders);
+    assertEquals(getJsonNode("\"abc\""), getJsonNode(deserializer.deserialize(topic, deserializerHeaders, bytes)));
 
   }
 
@@ -171,8 +196,10 @@ public class KafkaYangCborSchemaSerializerTest {
         this.getClass().getClassLoader().getResource("serializer/cbor/test1/valid.cbor").getFile());
 
     JsonNode jsonNode = getJsonNodeFromFile(this.getClass().getClassLoader().getResource("serializer/cbor/test1/valid.cbor").getFile());
-    bytes = serializer.serialize(topic, doc);
-    assertEquals(jsonNode, getJsonNode(deserializer.deserialize(topic, bytes)));
+    serializerHeaders = new RecordHeaders();
+    bytes = serializer.serialize(topic, serializerHeaders, doc);
+    deserializerHeaders = getDeserializationKafkaHeader(serializerHeaders);
+    assertEquals(jsonNode, getJsonNode(deserializer.deserialize(topic, deserializerHeaders, bytes)));
   }
 
   @Test
@@ -181,7 +208,8 @@ public class KafkaYangCborSchemaSerializerTest {
         this.getClass().getClassLoader().getResource("serializer/cbor/test2/test.yang").getFile(),
         this.getClass().getClassLoader().getResource("serializer/cbor/test2/invalid.cbor").getFile());
 
-    assertThrowsExactly(SerializationException.class, () -> serializer.serialize(topic, doc));
+    serializerHeaders = new RecordHeaders();
+    assertThrowsExactly(SerializationException.class, () -> serializer.serialize(topic, serializerHeaders, doc));
   }
 
   @Test
@@ -191,8 +219,10 @@ public class KafkaYangCborSchemaSerializerTest {
         this.getClass().getClassLoader().getResource("serializer/cbor/test3/test.yang").getFile(),
         this.getClass().getClassLoader().getResource("serializer/cbor/test3/invalid.cbor").getFile());
 
-    bytes = assertDoesNotThrow(() -> noValidationSerializer.serialize(topic, doc));
-    assertThrowsExactly(SerializationException.class, () -> deserializer.deserialize(topic, bytes));
+    serializerHeaders = new RecordHeaders();
+    bytes = assertDoesNotThrow(() -> noValidationSerializer.serialize(topic, serializerHeaders, doc));
+    deserializerHeaders = getDeserializationKafkaHeader(serializerHeaders);
+    assertThrowsExactly(SerializationException.class, () -> deserializer.deserialize(topic, deserializerHeaders, bytes));
   }
 
   @Test
@@ -202,8 +232,11 @@ public class KafkaYangCborSchemaSerializerTest {
         this.getClass().getClassLoader().getResource("serializer/cbor/test4/yangs").getFile(),
         this.getClass().getClassLoader().getResource("serializer/cbor/test4/valid.cbor").getFile());
     JsonNode jsonNode = getJsonNodeFromFile(this.getClass().getClassLoader().getResource("serializer/cbor/test4/valid.cbor").getFile());
-    bytes = serializer.serialize(topic, doc);
-    assertEquals(jsonNode, getJsonNode(deserializer.deserialize(topic, bytes)));
+
+    serializerHeaders = new RecordHeaders();
+    bytes = serializer.serialize(topic, serializerHeaders, doc);
+    deserializerHeaders = getDeserializationKafkaHeader(serializerHeaders);
+    assertEquals(jsonNode, getJsonNode(deserializer.deserialize(topic, deserializerHeaders, bytes)));
   }
 
   @Test
@@ -212,7 +245,8 @@ public class KafkaYangCborSchemaSerializerTest {
         this.getClass().getClassLoader().getResource("serializer/cbor/test5/yangs").getFile(),
         this.getClass().getClassLoader().getResource("serializer/cbor/test5/invalid.cbor").getFile());
 
-    assertThrowsExactly(SerializationException.class, () -> serializer.serialize(topic, doc));
+    serializerHeaders = new RecordHeaders();
+    assertThrowsExactly(SerializationException.class, () -> serializer.serialize(topic, serializerHeaders, doc));
   }
 
   @Test
@@ -222,8 +256,10 @@ public class KafkaYangCborSchemaSerializerTest {
         this.getClass().getClassLoader().getResource("serializer/cbor/test6/yangs").getFile(),
         this.getClass().getClassLoader().getResource("serializer/cbor/test6/invalid.cbor").getFile());
 
-    bytes = assertDoesNotThrow(() -> noValidationSerializer.serialize(topic, doc));
-    assertThrowsExactly(SerializationException.class, () -> deserializer.deserialize(topic, bytes));
+    serializerHeaders = new RecordHeaders();
+    bytes = assertDoesNotThrow(() -> noValidationSerializer.serialize(topic, serializerHeaders, doc));
+    deserializerHeaders = getDeserializationKafkaHeader(serializerHeaders);
+    assertThrowsExactly(SerializationException.class, () -> deserializer.deserialize(topic, deserializerHeaders, bytes));
   }
 
   @Test
@@ -234,8 +270,10 @@ public class KafkaYangCborSchemaSerializerTest {
         this.getClass().getClassLoader().getResource("serializer/cbor/test7/valid.cbor").getFile());
 
     JsonNode jsonNode = getJsonNodeFromFile(this.getClass().getClassLoader().getResource("serializer/cbor/test7/valid.cbor").getFile());
-    bytes = serializer.serialize(topic, doc);
-    assertEquals(jsonNode, getJsonNode(deserializer.deserialize(topic, bytes)));
+    serializerHeaders = new RecordHeaders();
+    bytes = serializer.serialize(topic, serializerHeaders, doc);
+    deserializerHeaders = getDeserializationKafkaHeader(serializerHeaders);
+    assertEquals(jsonNode, getJsonNode(deserializer.deserialize(topic, deserializerHeaders, bytes)));
   }
 
   @Test
@@ -246,10 +284,9 @@ public class KafkaYangCborSchemaSerializerTest {
         this.getClass().getClassLoader().getResource("serializer/cbor/test8/valid.cbor").getFile());
 
     JsonNode jsonNode = getJsonNodeFromFile(this.getClass().getClassLoader().getResource("serializer/cbor/test8/valid.cbor").getFile());
-    bytes = serializer.serialize(topic, doc);
-    assertEquals(jsonNode, getJsonNode(deserializer.deserialize(topic, bytes)));
+    serializerHeaders = new RecordHeaders();
+    bytes = serializer.serialize(topic, serializerHeaders, doc);
+    deserializerHeaders = getDeserializationKafkaHeader(serializerHeaders);
+    assertEquals(jsonNode, getJsonNode(deserializer.deserialize(topic, deserializerHeaders, bytes)));
   }
-
-
-
 }

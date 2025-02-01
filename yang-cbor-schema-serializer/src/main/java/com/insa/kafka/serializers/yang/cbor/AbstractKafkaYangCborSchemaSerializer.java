@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 INSA Lyon.
+ * Copyright 2025 INSA Lyon.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,9 +33,11 @@ import org.yangcentral.yangkit.model.api.codec.YangCodecException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 public abstract class AbstractKafkaYangCborSchemaSerializer<T> extends AbstractKafkaSchemaSerDe {
 
+  public static final String SCHEMA_ID_KEY = "schema_id";
   protected boolean normalizeSchema;
   protected boolean autoRegisterSchema;
   protected int useSchemaId = -1;
@@ -84,14 +86,14 @@ public abstract class AbstractKafkaYangCborSchemaSerializer<T> extends AbstractK
         restClientErrorMsg = "Error retrieving YANG schema: ";
         id = schemaRegistry.getId(subject, schema, normalizeSchema);
       }
+      headers.add(SCHEMA_ID_KEY, ByteBuffer.allocate(idSize).putInt(id).array());
+      headers.add("content-type", "application/yang-data+cbor".getBytes(StandardCharsets.UTF_8));
       object = (T) executeRules(subject, topic, headers, RuleMode.WRITE, null, schema, object);
       if (validate) {
         validateYangCborMessage(object, schema);
       }
 
       ByteArrayOutputStream out = new ByteArrayOutputStream();
-      out.write(MAGIC_BYTE);
-      out.write(ByteBuffer.allocate(idSize).putInt(id).array());
       out.write(objectMapper.writeValueAsBytes(object));
       byte[] bytes = out.toByteArray();
       out.close();
