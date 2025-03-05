@@ -37,7 +37,7 @@ import java.nio.charset.StandardCharsets;
 
 public abstract class AbstractKafkaYangCborSchemaSerializer<T> extends AbstractKafkaSchemaSerDe {
 
-  public static final String SCHEMA_ID_KEY = "schema_id";
+  public static final String SCHEMA_ID_KEY = "schema-id";
   protected boolean normalizeSchema;
   protected boolean autoRegisterSchema;
   protected int useSchemaId = -1;

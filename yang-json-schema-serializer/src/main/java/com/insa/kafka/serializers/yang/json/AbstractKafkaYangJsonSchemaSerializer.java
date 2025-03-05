@@ -36,7 +36,7 @@ import java.nio.charset.StandardCharsets;
 
 public abstract class AbstractKafkaYangJsonSchemaSerializer<T> extends AbstractKafkaSchemaSerDe {
 
-  public static final String SCHEMA_ID_KEY = "schema_id";
+  public static final String SCHEMA_ID_KEY = "schema-id";
   protected boolean normalizeSchema;
   protected boolean autoRegisterSchema;
   protected int useSchemaId = -1;
@@ -86,7 +86,7 @@ public abstract class AbstractKafkaYangJsonSchemaSerializer<T> extends AbstractK
         id = schemaRegistry.getId(subject, schema, normalizeSchema);
       }
       headers.add(SCHEMA_ID_KEY, ByteBuffer.allocate(idSize).putInt(id).array());
-      headers.add("content-type", "application/yang.data+json".getBytes(StandardCharsets.UTF_8));
+      headers.add("content-type", "application/yang-data+json".getBytes(StandardCharsets.UTF_8));
       object = (T) executeRules(subject, topic, headers, RuleMode.WRITE, null, schema, object);
       if (validate) {
         validateYangJson(object, schema);
